@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-slate-50 text-slate-900">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>PalrixShow WebOps</title>
+  
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Tailwind CSS & Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  
+  <!-- QRCode Generator for Device Pairing -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="bg-slate-50 min-h-screen antialiased selection:bg-blue-500 selection:text-white">
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed top-4 inset-x-4 z-50 flex flex-col gap-2 max-w-md mx-auto pointer-events-none"></div>
+
+  <!-- Main Mobile App Shell (Max Width constrained for tablet/desktop preview) -->
+  <div class="max-w-md mx-auto min-h-screen bg-white shadow-xl relative flex flex-col">
+
+    <!-- Top App Bar -->
+    <header class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-slate-900 text-white font-black flex items-center justify-center text-sm shadow-sm">
+          P
+        </div>
+        <div>
+          <h1 class="text-sm font-extrabold text-slate-900 leading-none">PalrixShow WebOps</h1>
+          <span id="sellerDisplayName" class="text-[11px] font-semibold text-slate-400 leading-tight block">Loading...</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button id="refreshCatalogBtn" class="w-8 h-8 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center hover:bg-slate-100 active:scale-90" title="Refresh Catalog">
+          <i class="bi bi-arrow-clockwise text-sm"></i>
+        </button>
+        <button id="globalPublishBtn" class="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50" title="Publish Changes Live">
+          <i class="bi bi-cloud-arrow-up-fill"></i>
+          <span>Go Live</span>
+          <span class="dirty-badge hidden w-2 h-2 rounded-full bg-amber-400"></span>
+        </button>
+      </div>
+    </header>
+
+    <!-- VIEWS CONTAINER -->
+    <main class="flex-1 pb-6">
+
+      <!-- 1. LOGIN / ONBOARDING VIEW -->
+      <section id="view-login" class="app-view hidden px-6 py-12 text-center">
+        <div class="w-16 h-16 rounded-3xl bg-slate-900 text-white flex items-center justify-center text-2xl font-black mx-auto mb-6 shadow-xl shadow-slate-900/10">
+          P
+        </div>
+        <h2 class="text-xl font-extrabold text-slate-900 mb-2">Connect Your Store</h2>
+        <p class="text-xs text-slate-500 max-w-xs mx-auto mb-8">Enter your dedicated Seller Key to unlock and manage your mobile product showcase.</p>
+
+        <div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 mb-4 text-left shadow-inner">
+          <label class="block text-xs font-bold text-slate-600 mb-2">Seller Passkey or GitHub Token</label>
+          <textarea id="loginKeyInput" rows="3" class="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste your psw_v1 key or ghp_ token here..."></textarea>
+        </div>
+
+        <button id="submitKeyBtn" class="w-full py-3.5 rounded-2xl bg-blue-600 text-white font-bold text-sm shadow-lg shadow-blue-600/20 active:scale-98 transition">
+          Unlock & Connect
+        </button>
+      </section>
+
+      <!-- 2. DASHBOARD VIEW -->
+      <section id="view-dashboard" class="app-view px-4 py-5">
+        <!-- Hero Banner -->
+        <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 mb-5 shadow-lg shadow-slate-900/15 relative overflow-hidden">
+          <div class="relative z-10">
+            <span class="text-[11px] font-bold text-slate-400 tracking-wider uppercase">Mobile Store Manager</span>
+            <h2 class="text-lg font-black mt-0.5 mb-3">Reels Showcase Catalog</h2>
+            <div class="flex items-center gap-2">
+              <button data-action="add-product" class="px-3.5 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95">
+                <i class="bi bi-plus-lg"></i> Add Product
+              </button>
+            </div>
+          </div>
+          <i class="bi bi-phone text-8xl absolute -bottom-6 -right-4 text-white/5 pointer-events-none"></i>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="grid grid-cols-3 gap-3 mb-6">
+          <div class="bg-slate-50 border border-slate-100 rounded-2xl p-3.5 text-center">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Products</span>
+            <span id="statTotalProducts" class="text-xl font-black text-slate-900">0</span>
+          </div>
+          <div class="bg-slate-50 border border-slate-100 rounded-2xl p-3.5 text-center">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Categories</span>
+            <span id="statTotalCategories" class="text-xl font-black text-slate-900">0</span>
+          </div>
+          <div class="bg-slate-50 border border-slate-100 rounded-2xl p-3.5 text-center">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Sync Status</span>
+            <span id="statPendingChanges" class="text-xs font-bold text-emerald-500 mt-1 block">In Sync</span>
+          </div>
+        </div>
+
+        <!-- Quick Links -->
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Quick Actions</h3>
+        <div class="flex flex-col gap-2.5">
+          <button class="nav-btn w-full bg-white border border-slate-200/80 rounded-2xl p-3.5 flex items-center gap-3 text-left shadow-sm active:scale-98" data-view="view-products">
+            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg flex-shrink-0">
+              <i class="bi bi-grid-fill"></i>
+            </div>
+            <div class="flex-1">
+              <span class="text-sm font-bold text-slate-900 block">Manage Products</span>
+              <span class="text-xs text-slate-500">Edit titles, prices, colors, and photos</span>
+            </div>
+            <i class="bi bi-chevron-right text-slate-400 text-sm"></i>
+          </button>
+          <button class="nav-btn w-full bg-white border border-slate-200/80 rounded-2xl p-3.5 flex items-center gap-3 text-left shadow-sm active:scale-98" data-view="view-settings">
+            <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center text-lg flex-shrink-0">
+              <i class="bi bi-qr-code"></i>
+            </div>
+            <div class="flex-1">
+              <span class="text-sm font-bold text-slate-900 block">Pair Another Device</span>
+              <span class="text-xs text-slate-500">Share QR Code / Passkey</span>
+            </div>
+            <i class="bi bi-chevron-right text-slate-400 text-sm"></i>
+          </button>
+        </div>
+      </section>
+
+      <!-- 3. PRODUCTS LIST VIEW -->
+      <section id="view-products" class="app-view hidden px-4 py-4">
+        <!-- Search Input -->
+        <div class="relative mb-3">
+          <i class="bi bi-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+          <input type="text" id="productsSearchInput" placeholder="Search by name, SKU, or category..." class="w-full bg-slate-100/90 border border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs font-medium text-slate-800 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- Horizontal Category Pills -->
+        <div id="categoryChipsBar" class="flex gap-2 overflow-x-auto no-scrollbar py-1 mb-3"></div>
+
+        <!-- Products List -->
+        <div id="productsListContainer" class="flex flex-col gap-2.5"></div>
+      </section>
+
+      <!-- 4. EDIT / ADD PRODUCT VIEW -->
+      <section id="view-edit-product" class="app-view hidden px-4 py-4">
+        <div class="flex items-center justify-between mb-4">
+          <button id="cancelEditProductBtn" class="text-xs font-bold text-slate-500 flex items-center gap-1 active:scale-95">
+            <i class="bi bi-chevron-left"></i> Cancel
+          </button>
+          <h2 class="text-sm font-black text-slate-900">Product Editor</h2>
+          <button id="saveProductBtn" class="px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-sm active:scale-95">
+            Save
+          </button>
+        </div>
+
+        <!-- Product Basic Fields -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 mb-4 shadow-sm space-y-3.5">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Product ID (Auto-Assigned)</label>
+            <input type="text" id="editProductId" readonly class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-600">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Product Code / SKU</label>
+            <input type="text" id="editProductCode" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Product Name *</label>
+            <input type="text" id="editProductName" placeholder="e.g. Pure Cotton Kurti" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Category *</label>
+            <input type="text" id="editProductCategory" placeholder="e.g. Saree, Top & Pent, Polo Shirts" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Price (₹) *</label>
+              <input type="number" id="editProductPrice" placeholder="899" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Original Price (₹)</label>
+              <input type="number" id="editProductOriginalPrice" placeholder="1299" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-500 focus:ring-2 focus:ring-blue-500">
+            </div>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Description</label>
+            <textarea id="editProductDesc" rows="3" class="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500" placeholder="Fabric details, size fit, care instructions..."></textarea>
+          </div>
+        </div>
+
+        <!-- Available Sizes Section -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 mb-4 shadow-sm">
+          <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Available Sizes</label>
+          <div id="sizesChipsContainer" class="flex flex-wrap gap-2 mb-3"></div>
+          <div class="flex gap-2">
+            <input type="text" id="customSizeInput" placeholder="Add custom (e.g. 34, XXXL)" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs">
+            <button type="button" id="addCustomSizeBtn" class="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold active:scale-95">Add</button>
+          </div>
+        </div>
+
+        <!-- Photos & Variant Colors Section -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 mb-4 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Product Photos & Colors</h3>
+              <span class="text-[10px] text-slate-400">Photos will be automatically compressed (~150KB)</span>
+            </div>
+            <button type="button" id="applyColorAllBtn" class="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg hover:bg-blue-100 active:scale-95">
+              🎨 Color to All
+            </button>
+          </div>
+
+          <!-- Camera & Gallery Buttons -->
+          <div class="grid grid-cols-2 gap-2 mb-4">
+            <label class="cursor-pointer flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-700 rounded-xl font-bold text-xs border border-blue-100 active:scale-95">
+              <i class="bi bi-camera-fill text-sm"></i> Take Photo
+              <input type="file" id="cameraFileInput" accept="image/*" capture="environment" class="hidden" multiple>
+            </label>
+            <label class="cursor-pointer flex items-center justify-center gap-2 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-xs border border-slate-200 active:scale-95">
+              <i class="bi bi-images text-sm"></i> From Gallery
+              <input type="file" id="galleryFileInput" accept="image/*" class="hidden" multiple>
+            </label>
+          </div>
+
+          <!-- List of Added Variants -->
+          <div id="editVariantsList" class="flex flex-col gap-2"></div>
+        </div>
+
+        <!-- Badges & Promotional Flags -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 mb-4 shadow-sm space-y-3">
+          <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">Promotion & Badges</h3>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Badge Label</label>
+            <input type="text" id="editProductBadge" placeholder="e.g. Most Liked, Trending, Limited Stock" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800">
+          </div>
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="checkbox" id="editFlagNewArrival" class="w-4 h-4 rounded text-blue-600">
+              <span>⭐ New Arrival</span>
+            </label>
+            <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="checkbox" id="editFlagLimitedStock" class="w-4 h-4 rounded text-blue-600">
+              <span>🔥 Limited Stock</span>
+            </label>
+            <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="checkbox" id="editFlagMostSold" class="w-4 h-4 rounded text-blue-600">
+              <span>🏆 Most Sold</span>
+            </label>
+            <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="checkbox" id="editFlagMostLiked" class="w-4 h-4 rounded text-blue-600">
+              <span>❤️ Most Liked</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Danger Zone Actions -->
+        <div class="flex gap-2">
+          <button type="button" id="duplicateProductBtn" class="flex-1 py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold text-xs active:scale-95">
+            Duplicate
+          </button>
+          <button type="button" id="deleteProductBtn" class="flex-1 py-3 rounded-2xl bg-rose-50 text-rose-600 font-bold text-xs active:scale-95">
+            Delete Product
+          </button>
+        </div>
+      </section>
+
+      <!-- 5. SETTINGS / PAIRING VIEW -->
+      <section id="view-settings" class="app-view hidden px-4 py-5">
+        <h2 class="text-base font-black text-slate-900 mb-4">Device & Store Pairing</h2>
+
+        <!-- QR Code Sharing Card -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-5 mb-4 text-center shadow-sm">
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-3">Pair Another Smartphone</span>
+          <div id="pairingQrContainer" class="flex justify-center p-3 bg-white border border-slate-100 rounded-2xl w-48 h-48 mx-auto mb-3 shadow-inner"></div>
+          <p class="text-[11px] text-slate-400">Scan this QR code from another device's camera or WebOps login screen.</p>
+        </div>
+
+        <!-- Store Details -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 mb-4 shadow-sm space-y-2.5 text-xs">
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-medium">Seller ID</span>
+            <span id="settingsSellerDisplay" class="font-bold text-slate-900">...</span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-medium">GitHub Repo</span>
+            <span id="settingsRepoDisplay" class="font-bold text-slate-900 font-mono">...</span>
+          </div>
+          <div class="py-1">
+            <span class="text-slate-500 font-medium block mb-1">Pairing Passkey</span>
+            <input type="text" id="settingsKeyDisplay" readonly class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-[11px] font-mono text-slate-600">
+          </div>
+        </div>
+
+        <button id="logoutBtn" class="w-full py-3.5 rounded-2xl bg-rose-50 text-rose-600 font-bold text-xs border border-rose-100 active:scale-98">
+          Disconnect This Device
+        </button>
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar (Fixed) -->
+    <nav class="fixed bottom-0 inset-x-0 max-w-md mx-auto glass-nav border-t border-slate-200/80 px-6 py-2 flex items-center justify-between z-40">
+      <button class="nav-btn flex flex-col items-center gap-1 text-blue-600 text-[10px] font-bold" data-view="view-dashboard">
+        <i class="bi bi-house-door-fill text-lg"></i>
+        <span>Home</span>
+      </button>
+      <button class="nav-btn flex flex-col items-center gap-1 text-slate-400 text-[10px] font-bold" data-view="view-products">
+        <i class="bi bi-collection-fill text-lg"></i>
+        <span>Products</span>
+      </button>
+      <button data-action="add-product" class="w-12 h-12 -mt-5 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-xl shadow-lg shadow-slate-900/20 active:scale-90">
+        <i class="bi bi-plus-lg"></i>
+      </button>
+      <button class="nav-btn flex flex-col items-center gap-1 text-slate-400 text-[10px] font-bold" data-view="view-settings">
+        <i class="bi bi-gear-fill text-lg"></i>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- COLOR PICKER MODAL -->
+  <div id="colorPickerModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl animate-in slide-in-from-bottom duration-200">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-black text-slate-900">Pick Variant Color</h3>
+        <div class="flex items-center gap-2">
+          <div id="colorPreviewBox" class="w-6 h-6 rounded-full border border-slate-200 shadow-sm"></div>
+          <span id="colorNameText" class="text-xs font-bold text-slate-800">Navy</span>
+          <span id="colorHexText" class="text-[10px] font-mono text-slate-400">#1D2E47</span>
+        </div>
+      </div>
+
+      <!-- Native Palette Wheel -->
+      <div class="mb-4">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Custom Color Wheel</label>
+        <input type="color" id="customColorInput" class="w-full h-10 rounded-xl cursor-pointer bg-white border border-slate-200 p-1">
+      </div>
+
+      <!-- Presets Palette Grid -->
+      <div class="mb-5">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Standard Palette</label>
+        <div id="presetPaletteGrid" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <div class="flex gap-2.5">
+        <button type="button" id="cancelColorBtn" class="flex-1 py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold text-xs active:scale-95">Cancel</button>
+        <button type="button" id="confirmColorBtn" class="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-bold text-xs shadow-sm active:scale-95">Apply Color</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIRMATION MODAL -->
+  <div id="confirmModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl text-center">
+      <h3 id="confirmModalTitle" class="text-base font-black text-slate-900 mb-2">Confirm Action</h3>
+      <p id="confirmModalMsg" class="text-xs text-slate-500 mb-5 leading-relaxed">Are you sure?</p>
+      <div class="flex gap-2">
+        <button id="confirmModalCancelBtn" class="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold text-xs active:scale-95">Cancel</button>
+        <button id="confirmModalActionBtn" class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-xs active:scale-95">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIVE PUBLISH PROGRESS MODAL -->
+  <div id="publishProgressModal" class="hidden fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center">
+      <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl mx-auto mb-4 animate-bounce">
+        <i class="bi bi-cloud-arrow-up-fill"></i>
+      </div>
+      <h3 class="text-base font-black text-slate-900 mb-1">Publishing to Live</h3>
+      <p id="publishProgressMsg" class="text-xs text-slate-500 mb-4 font-medium">Encoding images and catalog...</p>
+      <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden mb-2">
+        <div id="publishProgressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 20%;"></div>
+      </div>
+      <span class="text-[10px] text-slate-400">Please do not close this window</span>
+    </div>
+  </div>
+
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(err => {
+          console.log('SW registration failed:', err);
+        });
+      });
+    }
+  </script>
+
+  <!-- Main Application Script -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
