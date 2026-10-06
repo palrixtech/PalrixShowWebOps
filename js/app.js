@@ -25,11 +25,10 @@ class App {
   }
 
   checkAuthAndStart() {
+    this.switchView('view-dashboard');
+    this.loadCatalogData();
     if (!isAuthenticated()) {
-      this.switchView('view-login');
-    } else {
-      this.switchView('view-dashboard');
-      this.loadCatalogData();
+      showToast('Store in Preview mode. Connect your Seller Key to publish live.', 'info', 4000);
     }
   }
 
@@ -490,6 +489,12 @@ class App {
   }
 
   async publishLiveWorkflow() {
+    if (!isAuthenticated()) {
+      showToast('Please connect your Seller Key first to publish live changes.', 'warning', 4000);
+      this.switchView('view-login');
+      return;
+    }
+
     if (!catalogStore.isDirty) {
       showToast('No pending changes to publish.', 'info');
       return;

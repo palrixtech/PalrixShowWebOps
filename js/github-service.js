@@ -5,6 +5,7 @@
 
 import { getAuthConfig } from './auth.js';
 import { parseCSV, groupRowsIntoProducts, serializeProductsToCSV } from './csv-parser.js';
+import { DEFAULT_PRODUCTS_CSV } from './default-catalog.js';
 
 class GitHubService {
   constructor() {
@@ -27,11 +28,21 @@ class GitHubService {
   getRepoInfo() {
     const config = getAuthConfig();
     if (!config || !config.repo) {
-      throw new Error('Repository target is not configured.');
+      return {
+        owner: 'palrixtech',
+        repo: 'PalrixShow',
+        branch: 'main',
+        sellerId: 'palrix-fashion'
+      };
     }
     const parts = config.repo.split('/');
     if (parts.length !== 2) {
-      throw new Error(`Invalid repository format: ${config.repo}. Expected "owner/repo".`);
+      return {
+        owner: 'palrixtech',
+        repo: 'PalrixShow',
+        branch: 'main',
+        sellerId: 'palrix-fashion'
+      };
     }
     return {
       owner: parts[0],
@@ -62,20 +73,42 @@ class GitHubService {
   async fetchCatalog() {
     const { owner, repo, branch, sellerId } = this.getRepoInfo();
     const ts = Date.now();
-    const url = `${this.apiBase}/repos/${owner}/${repo}/contents/data/products.csv?ref=${branch}&t=${ts}`;
-    
-    const response = await fetch(url, { headers: this.getHeaders() });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch products.csv (HTTP ${response.status})`);
+    let csvText = '';
+    let sha = '';
+
+    const auth = getAuthConfig();
+    if (auth && auth.token) {
+      try {
+        const url = `${this.apiBase}/repos/${owner}/${repo}/contents/data/products.csv?ref=${branch}&t=${ts}`;
+        const response = await fetch(url, { headers: this.getHeaders() });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.content && data.encoding === 'base64') {
+            csvText = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
+            sha = data.sha;
+          }
+        }
+      } catch (err) {
+        console.warn('Authenticated fetch failed, attempting fallbacks', err);
+      }
     }
 
-    const data = await response.json();
-    // GitHub contents API returns base64
-    let csvText = '';
-    if (data.content && data.encoding === 'base64') {
-      csvText = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
-    } else {
-      throw new Error('Unsupported content encoding for products.csv');
+    // Fallback to raw public GitHub fetch
+    if (!csvText) {
+      try {
+        const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/data/products.csv?t=${ts}`;
+        const res = await fetch(rawUrl);
+        if (res.ok) {
+          csvText = await res.text();
+        }
+      } catch (e) {
+        console.warn('Raw fetch failed', e);
+      }
+    }
+
+    // Unbreakable fallback to embedded catalog dataset
+    if (!csvText) {
+      csvText = DEFAULT_PRODUCTS_CSV;
     }
 
     const rows = parseCSV(csvText);
@@ -84,7 +117,7 @@ class GitHubService {
       allProducts,
       rawCsv: csvText,
       sellerProducts: allProducts.filter(p => !sellerId || p.sellerId === sellerId),
-      sha: data.sha
+      sha
     };
   }
 
